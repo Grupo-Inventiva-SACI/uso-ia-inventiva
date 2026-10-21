@@ -88,6 +88,8 @@ Otros comandos útiles:
 - `connmgr list`: lista las conexiones guardadas.
 - `connmgr show NOMBRE_CONEXION`: muestra los datos de una conexión guardada.
 
+Para no hacerlo a mano, también se le puede pedir a la IA que genere un script que haga las preguntas, incluida la contraseña, y cree la conexión (ver 0.7).
+
 **Convenciones para el nombre**: incluir el cliente y el entorno, para no confundirlos (por ejemplo, `CLIENTE_PRUEBA` y `CLIENTE_PROD`). Ver la sección 1.5.
 
 Para Autonomous Database y otras bases que se conectan con *wallet*, la conexión se crea de forma similar indicando el wallet; seguir la documentación de Oracle para ese caso.
@@ -140,6 +142,8 @@ el servidor [HOST], puerto [PUERTO], servicio [SERVICIO], con el usuario
 dame el comando para que lo ejecute yo en mi propia terminal.
 ```
 
+Para que la IA genere un script que lo haga por la persona, ver el prompt de 0.7.1.
+
 **3. Probar la conexión**
 
 ```text
@@ -180,6 +184,74 @@ Estas reglas, una vez definidas, conviene dejarlas escritas en el `CLAUDE.md` de
 - [Preparar el entorno para el servidor MCP de SQLcl](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.1/sqcug/preparing-your-environment.html) (Oracle)
 - [Iniciar y administrar el servidor MCP de SQLcl](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.1/sqcug/starting-and-managing-sqlcl-mcp-server.html) (Oracle)
 - [Descarga de SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/) (Oracle)
+
+### 0.7 Generar un script que pida la contraseña
+
+Para no escribir contraseñas en la conversación con la IA, se le puede pedir que **genere un script** que la persona ejecuta en su propia terminal. El script le pregunta los datos a la persona, crea la conexión y la prueba, y la contraseña se ingresa ahí mismo. La IA escribe el script, pero **no lo ejecuta y nunca ve la contraseña**. Sirve tanto para conexiones de SQLcl a la base de datos como para SSH al sistema operativo del servidor.
+
+#### Qué debe cumplir el script
+
+- Pide los datos que no son secretos (nombre, host, puerto, servicio, usuario) con preguntas normales.
+- La contraseña se ingresa de forma oculta: no se muestra en pantalla, no se recibe como parámetro del script, no se guarda en archivos, variables de entorno ni en el historial de la terminal, y no se imprime.
+- Siempre que se pueda, **la contraseña la pide el propio programa** (SQLcl o `ssh`) en su prompt, de modo que el script nunca la maneja.
+- Tiene comentarios que explican cada paso, para poder revisarlo antes de ejecutarlo.
+- Termina probando la conexión y mostrando el resultado.
+- Se guarda **fuera del repositorio del proyecto**, porque contiene datos de conexión del cliente.
+- Antes de ejecutarlo, la persona lo lee: no se corre un script generado sin revisarlo.
+
+#### 0.7.1 Conexión de SQLcl a la base de datos
+
+Pegar este prompt en la conversación, eligiendo el sistema operativo:
+
+```text
+Generame un script para [Windows (PowerShell) / Linux o macOS (bash)] que cree
+una conexión guardada de SQLcl. Requisitos:
+1. Pedirme con preguntas normales: nombre de la conexión, host, puerto
+   (1521 por defecto), nombre de servicio y usuario.
+2. La contraseña NO la manejes vos en el script: ejecutá dentro de SQLcl
+   (`sql /nolog`) el comando `conn -save [nombre] -savepwd usuario@//host:puerto/servicio`
+   para que sea SQLcl quien me la pida en su propio prompt. Si por algún motivo
+   el script necesita pedirla, hacelo de forma oculta (sin mostrarla), no la
+   imprimas, no la guardes en archivos ni en el historial y limpiá la variable
+   al terminar.
+3. Nunca pongas la contraseña en parámetros, argumentos de línea de comandos
+   ni variables de entorno.
+4. Al final, verificá la conexión guardada con una consulta simple
+   (`select user from dual`) y mostrame el resultado.
+5. Comentá cada paso para que pueda revisarlo antes de ejecutarlo.
+No ejecutes el script vos: dejame el archivo y explicame cómo correrlo.
+```
+
+#### 0.7.2 SSH al sistema operativo del servidor
+
+Lo ideal es entrar por SSH **con clave** y no con contraseña. La contraseña del servidor se escribe **una sola vez**, para instalar la clave pública en el servidor; después la persona y la IA entran con la clave. Las versiones recientes de Windows incluyen el cliente OpenSSH; si falta, se instala desde las características opcionales del sistema.
+
+```text
+Generame un script para [Windows (PowerShell) / Linux o macOS (bash)] que deje
+configurado el acceso SSH a un servidor mediante clave. Requisitos:
+1. Pedirme con preguntas normales: alias de la conexión, host o IP, puerto
+   (22 por defecto) y usuario del servidor.
+2. Crear un par de claves (ed25519) exclusivo para este servidor con
+   `ssh-keygen`, dejando que `ssh-keygen` me pida la frase de contraseña
+   (passphrase) en su propio prompt. Si ya existe una clave con ese nombre,
+   no la sobrescribas: preguntame.
+3. Copiar la clave pública al servidor (`authorized_keys`) usando `ssh`, de modo
+   que sea `ssh` quien me pida la contraseña del servidor una sola vez. No
+   pidas ni manejes esa contraseña en el script, no la pases como parámetro y
+   no la guardes.
+4. Agregar una entrada `Host` con el alias en `~/.ssh/config` (sin duplicarla
+   si ya existe), usando esa clave.
+5. Probar con `ssh [alias]` ejecutando un comando inofensivo (`hostname`) y
+   mostrarme el resultado.
+6. Comentá cada paso para que pueda revisarlo antes de ejecutarlo.
+No ejecutes el script vos: dejame el archivo y explicame cómo correrlo.
+```
+
+Recomendaciones para el acceso por SSH:
+
+- En el servidor, usar un usuario con los permisos necesarios para la tarea y, siempre que se pueda, no `root`. La IA con acceso por SSH trabaja con las mismas reglas de confirmación de la sección 2.2: cada comando que modifica algo se muestra y se confirma antes de ejecutarse.
+- Proteger la clave privada con frase de contraseña, no compartirla y no subirla nunca a un repositorio.
+- Para quitar el acceso, se elimina la clave pública del archivo `authorized_keys` del servidor.
 
 ## 1. Control de versiones y entornos
 
@@ -255,7 +327,7 @@ Las reglas se escriben en un archivo `CLAUDE.md` en la raíz del proyecto, que l
 
 También se puede optar por habilitar conexiones con claves para usar SSH con los servidores del cliente, algo muy útil para modificar archivos con JASPER, ver problemas en los servidores, etc.
 
-A la vez, esto es peligroso porque la IA estaría accediendo a **TODO** el servidor del cliente, por lo que antes debemos darle normas y tareas bien claras para evitar problemas.
+A la vez, esto es peligroso porque la IA estaría accediendo a **TODO** el servidor del cliente, por lo que antes debemos darle normas y tareas bien claras para evitar problemas. Para configurar el acceso por clave sin escribir contraseñas en la conversación, ver el prompt de la sección 0.7.2.
 
 ## 3. Skills y herramientas
 
@@ -531,7 +603,7 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 |---|---|---|
 | Versionado | Repositorio en GitHub; secretos y datos reales fuera; commits pequeños. | Siempre |
 | Entornos | Una fuente de código; probar primero en la app de prueba los cambios grandes y las páginas nuevas; cambios sincronizados con GitHub. | Cada cambio |
-| Instalación y conexión | SQLcl y Java en la máquina local; la persona crea la conexión guardada y nunca escribe contraseñas en el chat. | Configuración |
+| Instalación y conexión | SQLcl y Java en la máquina local; la persona crea la conexión (SQLcl o SSH), con un script que pide la contraseña, y nunca la escribe en el chat. | Configuración |
 | Working copies | Una por funcionalidad; fusionar probado; no acumular. | Cada cambio |
 | Importación | Exportar y hacer commit antes de importar; avisar a los usuarios. | Antes de importar |
 | IA y base de datos | Conexiones con nombre, mínimo privilegio, reglas claras y confirmación en cada cambio. | Siempre |
