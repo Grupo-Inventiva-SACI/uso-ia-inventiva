@@ -65,7 +65,7 @@ Una conexión guardada permite que la IA (o nosotros) entremos a la base con un 
 #### Qué hay que pedirle al cliente
 
 - Dirección del servidor (host), puerto (normalmente 1521) y **nombre de servicio** de la base (service name).
-- Un usuario de base de datos **con los privilegios mínimos necesarios**, y no `SYS` ni `SYSTEM`. Para empezar a investigar, uno de solo lectura.
+- Un usuario de base de datos **con los privilegios necesarios para el trabajo que se le pedirá a la IA** (consultar, diagnosticar y también corregir problemas), sin permisos de más, y no `SYS` ni `SYSTEM`.
 - Si la base no es accesible directamente, cómo llegar a ella: VPN o túnel SSH.
 
 #### Crear la conexión
@@ -140,22 +140,30 @@ el servidor [HOST], puerto [PUERTO], servicio [SERVICIO], con el usuario
 dame el comando para que lo ejecute yo en mi propia terminal.
 ```
 
-**3. Probar la conexión (solo lectura)**
+**3. Probar la conexión**
 
 ```text
 Ya tengo guardada en SQLcl la conexión [NOMBRE_CONEXION]. Listá las
 conexiones guardadas con `connmgr list`, conectate con
-`sql -name [NOMBRE_CONEXION]` y ejecutá solo consultas de lectura: el usuario
+`sql -name [NOMBRE_CONEXION]` y verificá que funciona: mostrame el usuario
 conectado (`select user from dual`) y la versión de APEX
-(`select version_no from apex_release`). No modifiques nada.
+(`select version_no from apex_release`).
 ```
 
 **4. Reglas de trabajo para la sesión**
 
+La IA puede diagnosticar y también corregir problemas en la base de datos y en la aplicación. Lo que lo hace seguro son las reglas que se le dan y la confirmación en cada cambio.
+
 ```text
-Trabajá únicamente con la conexión [NOMBRE_CONEXION]. Antes de ejecutar
-cualquier sentencia que modifique datos o estructura (insert, update, delete,
-drop, alter, grant, apex import), mostrámela y esperá mi aprobación.
+Trabajá únicamente con la conexión [NOMBRE_CONEXION]. Podés consultar,
+diagnosticar y proponer o aplicar correcciones, con estas reglas:
+1. Antes de ejecutar cualquier sentencia que modifique datos o estructura
+   (insert, update, delete, drop, alter, grant, apex import), mostrámela,
+   explicame qué va a hacer y esperá mi confirmación.
+2. Cuando sea posible, decime cómo se revierte el cambio o prepará el
+   script para deshacerlo antes de aplicarlo.
+3. Ejecutá un solo cambio por vez y confirmá el resultado con una consulta.
+4. Si algo no está claro o hay riesgo de perder datos, preguntame antes.
 ```
 
 Estas reglas, una vez definidas, conviene dejarlas escritas en el `CLAUDE.md` del proyecto (ver 2.2) para no repetirlas en cada conversación.
@@ -163,7 +171,7 @@ Estas reglas, una vez definidas, conviene dejarlas escritas en el `CLAUDE.md` de
 #### Recomendaciones de seguridad
 
 - **Nunca escribir ni pegar contraseñas en la conversación con la IA.** La conexión se crea en la terminal propia.
-- Usar un **usuario dedicado con privilegios mínimos** (de solo lectura para investigar) y empezar siempre por un entorno de pruebas.
+- Usar un **usuario dedicado con los privilegios necesarios para la tarea, y no más**, y empezar siempre por un entorno de pruebas.
 - Una conexión guardada con contraseña queda en la máquina de la persona que la creó: no compartir esa carpeta ni subirla a ningún repositorio.
 - Las sentencias que modifican datos o estructura siempre se aprueban antes de ejecutarse (ver el principio de la sección 2.2).
 
@@ -221,7 +229,7 @@ Las working copies permiten trabajar un cambio o una funcionalidad aislada de la
 Dar a la IA acceso a la base a través de SQLcl le permite consultar el diccionario, ejecutar scripts, exportar, validar e importar aplicaciones y comprobar el resultado sin intermediarios.
 
 - Usar **conexiones guardadas con nombre** (`sql -name <conexión>`), de modo que no hagan falta credenciales en los comandos ni en los archivos del proyecto.
-- Aplicar el **mínimo privilegio**: para el desarrollo diario conviene un usuario del schema de la aplicación, o de solo lectura para investigar, y no `ADMIN`. Reservar los privilegios altos para tareas puntuales (otorgar un grant, crear un schema).
+- Aplicar el **mínimo privilegio**: para el desarrollo diario conviene un usuario del schema de la aplicación y no `ADMIN`. Reservar los privilegios altos para tareas puntuales (otorgar un grant, crear un schema), siempre con confirmación.
 - Verificar con consultas en lugar de suponer. Las vistas del diccionario de APEX (`apex_debug_messages`, `apex_workspace_activity_log`, `apex_application_page_*`) resuelven en minutos problemas que de otro modo llevan horas de prueba y error.
 
 ### 2.2 Reglas escritas para la IA
