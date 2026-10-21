@@ -42,7 +42,136 @@ Para el uso de APEX y de la base de datos, hay que preguntarle a la IA si ya est
 
 La IA tendrá acceso a las funciones de APEXlang y a la base de datos en general mediante SQLcl, la herramienta que viene a sustituir al antiguo SQL*Plus.
 
-Para usar SQLcl es necesario tener Java 17 o superior.
+Para usar SQLcl es necesario tener Java 17 o superior (Oracle documenta las versiones 17, 21 y, según la versión de SQLcl, también la 25).
+
+#### Dónde se instalan
+
+**SQLcl y Java se instalan en la máquina local de la persona que desarrolla** (su PC o portátil), **no en el servidor del cliente**. SQLcl es solo un cliente: se conecta por red a la base de datos, igual que lo hace APEX o cualquier otra herramienta. No hace falta instalar nada en el servidor del cliente.
+
+- Esto también significa que **se puede usar SQLcl 26 contra una base cuyo APEX es anterior al 26**, para consultar, ejecutar scripts y trabajar con la base de datos.
+- Lo que sí depende de la versión de APEX instalada en la base son las funciones de APEXlang: exportar e importar aplicaciones en ese formato requiere APEX 26.1 o superior en esa base de datos. Si el cliente tiene una versión anterior, se puede trabajar con la base, pero no con APEXlang hasta que actualice.
+- La versión de APEX de una base se consulta con `select version_no from apex_release;`.
+
+#### Instalación (en la máquina local)
+
+1. **Java**: instalar un JDK 17 o 21 (Oracle JDK u OpenJDK). Verificar con `java -version`.
+2. **SQLcl**: descargar el `.zip` desde la [página oficial de SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/), descomprimirlo en una carpeta fija (por ejemplo `C:\tools\sqlcl`) y agregar su subcarpeta `bin` al `PATH` del sistema.
+3. Abrir una terminal nueva y verificar con `sql -V`.
+
+### 0.5 Crear una conexión guardada a la base de datos
+
+Una conexión guardada permite que la IA (o nosotros) entremos a la base con un solo nombre, sin escribir usuario, contraseña ni cadena de conexión cada vez, y sin que esos datos queden en comandos o archivos del proyecto.
+
+#### Qué hay que pedirle al cliente
+
+- Dirección del servidor (host), puerto (normalmente 1521) y **nombre de servicio** de la base (service name).
+- Un usuario de base de datos **con los privilegios mínimos necesarios**, y no `SYS` ni `SYSTEM`. Para empezar a investigar, uno de solo lectura.
+- Si la base no es accesible directamente, cómo llegar a ella: VPN o túnel SSH.
+
+#### Crear la conexión
+
+La conexión **la crea la persona en su propia terminal**, de modo que la contraseña se escriba ahí y no pase por la conversación con la IA.
+
+```text
+sql /nolog
+SQL> conn -save NOMBRE_CONEXION -savepwd usuario@//servidor:1521/servicio
+```
+
+SQLcl pide la contraseña, conecta y guarda la conexión (con su contraseña) en la carpeta `.dbtools` del usuario del sistema operativo. Después se puede usar así:
+
+```text
+sql -name NOMBRE_CONEXION
+```
+
+Otros comandos útiles:
+
+- `connmgr list`: lista las conexiones guardadas.
+- `connmgr show NOMBRE_CONEXION`: muestra los datos de una conexión guardada.
+
+**Convenciones para el nombre**: incluir el cliente y el entorno, para no confundirlos (por ejemplo, `CLIENTE_PRUEBA` y `CLIENTE_PROD`). Ver la sección 1.5.
+
+Para Autonomous Database y otras bases que se conectan con *wallet*, la conexión se crea de forma similar indicando el wallet; seguir la documentación de Oracle para ese caso.
+
+### 0.6 Darle a la IA acceso a la conexión
+
+Hay dos formas de que la IA use la conexión guardada. La primera es la más simple y es la que recomendamos para empezar.
+
+#### Opción A: la IA ejecuta SQLcl en la terminal
+
+La IA corre `sql -name NOMBRE_CONEXION` y ejecuta las sentencias en esa sesión. Solo necesita que SQLcl esté en el `PATH` y que la conexión exista. Es lo que se usa para exportar, validar e importar aplicaciones y para consultar el diccionario.
+
+#### Opción B: servidor MCP de SQLcl
+
+SQLcl incluye un servidor MCP (`sql -mcp`) que expone la base a la IA como herramientas, en lugar de pasar por la terminal. Requiere **SQLcl 25.2 o superior** y **Java 17 o 21**, y que la conexión esté guardada **con contraseña** (`-savepwd`).
+
+Se registra en el cliente de IA con el comando y el argumento del servidor. Por ejemplo, en Claude Desktop (`claude_desktop_config.json`), reemplazando `RUTA` por la carpeta donde está instalado SQLcl:
+
+```json
+{
+  "mcpServers": {
+    "sqlcl": {
+      "command": "RUTA/bin/sql",
+      "args": ["-mcp"]
+    }
+  }
+}
+```
+
+Después de reiniciar, se comprueba en el botón de herramientas del cuadro de mensaje que las herramientas de SQLcl aparecen habilitadas. El servidor MCP de SQLcl tiene además *niveles de restricción* (restrict levels) que limitan lo que la IA puede hacer; conviene revisarlos en la documentación de Oracle antes de usarlo con bases importantes.
+
+#### Prompts para empezar
+
+Los siguientes mensajes se pueden pegar tal cual en la conversación con la IA, cambiando los datos entre corchetes.
+
+**1. Verificar la instalación**
+
+```text
+Verificá que Java (17 o superior) y SQLcl estén instalados en esta máquina y
+disponibles en el PATH: ejecutá `java -version` y `sql -V`. Si falta algo,
+decime qué tengo que instalar y dónde. No instales nada sin avisarme.
+```
+
+**2. Crear la conexión sin pasarle la contraseña**
+
+```text
+Quiero crear una conexión guardada en SQLcl llamada [NOMBRE_CONEXION] hacia
+el servidor [HOST], puerto [PUERTO], servicio [SERVICIO], con el usuario
+[USUARIO]. Guiame paso a paso. NO me pidas la contraseña ni la escribas vos:
+dame el comando para que lo ejecute yo en mi propia terminal.
+```
+
+**3. Probar la conexión (solo lectura)**
+
+```text
+Ya tengo guardada en SQLcl la conexión [NOMBRE_CONEXION]. Listá las
+conexiones guardadas con `connmgr list`, conectate con
+`sql -name [NOMBRE_CONEXION]` y ejecutá solo consultas de lectura: el usuario
+conectado (`select user from dual`) y la versión de APEX
+(`select version_no from apex_release`). No modifiques nada.
+```
+
+**4. Reglas de trabajo para la sesión**
+
+```text
+Trabajá únicamente con la conexión [NOMBRE_CONEXION]. Antes de ejecutar
+cualquier sentencia que modifique datos o estructura (insert, update, delete,
+drop, alter, grant, apex import), mostrámela y esperá mi aprobación.
+```
+
+Estas reglas, una vez definidas, conviene dejarlas escritas en el `CLAUDE.md` del proyecto (ver 2.2) para no repetirlas en cada conversación.
+
+#### Recomendaciones de seguridad
+
+- **Nunca escribir ni pegar contraseñas en la conversación con la IA.** La conexión se crea en la terminal propia.
+- Usar un **usuario dedicado con privilegios mínimos** (de solo lectura para investigar) y empezar siempre por un entorno de pruebas.
+- Una conexión guardada con contraseña queda en la máquina de la persona que la creó: no compartir esa carpeta ni subirla a ningún repositorio.
+- Las sentencias que modifican datos o estructura siempre se aprueban antes de ejecutarse (ver el principio de la sección 2.2).
+
+#### Referencias
+
+- [Preparar el entorno para el servidor MCP de SQLcl](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.1/sqcug/preparing-your-environment.html) (Oracle)
+- [Iniciar y administrar el servidor MCP de SQLcl](https://docs.oracle.com/en/database/oracle/sql-developer-command-line/26.1/sqcug/starting-and-managing-sqlcl-mcp-server.html) (Oracle)
+- [Descarga de SQLcl](https://www.oracle.com/database/sqldeveloper/technologies/sqlcl/download/) (Oracle)
 
 ## 1. Control de versiones y entornos
 
