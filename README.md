@@ -42,7 +42,7 @@ Para el uso de APEX y de la base de datos, hay que preguntarle a la IA si ya est
 
 La IA tendrá acceso a las funciones de APEXlang y a la base de datos en general mediante SQLcl, la herramienta que viene a sustituir al antiguo SQL*Plus.
 
-Para usar SQLcl es necesario tener Java 17 o superior (Oracle documenta las versiones 17, 21 y, según la versión de SQLcl, también la 25).
+Para usar SQLcl es necesario tener Java 17 o superior. Oracle documenta las versiones 17 y 21 (y la 25 en las versiones más recientes de SQLcl); instalar la 17 o la 21 es lo más seguro.
 
 #### Dónde se instalan
 
@@ -126,7 +126,7 @@ Los siguientes mensajes se pueden pegar tal cual en la conversación con la IA, 
 **1. Verificar la instalación**
 
 ```text
-Verificá que Java (17 o superior) y SQLcl estén instalados en esta máquina y
+Verificá que Java (versión 17 o 21) y SQLcl estén instalados en esta máquina y
 disponibles en el PATH: ejecutá `java -version` y `sql -V`. Si falta algo,
 decime qué tengo que instalar y dónde. No instales nada sin avisarme.
 ```
@@ -226,7 +226,7 @@ Las working copies permiten trabajar un cambio o una funcionalidad aislada de la
 
 ### 2.1 Acceso mediante SQLcl con conexiones guardadas
 
-Dar a la IA acceso a la base a través de SQLcl le permite consultar el diccionario, ejecutar scripts, exportar, validar e importar aplicaciones y comprobar el resultado sin intermediarios.
+Dar a la IA acceso a la base a través de SQLcl le permite consultar el diccionario, diagnosticar y corregir problemas, ejecutar scripts, exportar, validar e importar aplicaciones y comprobar el resultado sin intermediarios. Para que sea seguro, la persona define las reglas (2.2) y confirma cada cambio.
 
 - Usar **conexiones guardadas con nombre** (`sql -name <conexión>`), de modo que no hagan falta credenciales en los comandos ni en los archivos del proyecto.
 - Aplicar el **mínimo privilegio**: para el desarrollo diario conviene un usuario del schema de la aplicación y no `ADMIN`. Reservar los privilegios altos para tareas puntuales (otorgar un grant, crear un schema), siempre con confirmación.
@@ -237,12 +237,12 @@ Dar a la IA acceso a la base a través de SQLcl le permite consultar el dicciona
 Las reglas se escriben en un archivo `CLAUDE.md` en la raíz del proyecto, que la IA carga antes de actuar. Debe incluir:
 
 - Qué entorno, base, workspace, schema y aplicaciones son los de este proyecto, y cuáles no se tocan.
-- Qué acciones requieren aprobación explícita: `apex import`, borrados masivos, scripts de reseteo, cambios de privilegios. Si se concede una autorización permanente, dejarla escrita con fecha y alcance.
+- Qué acciones requieren confirmación explícita: toda sentencia que modifique datos o estructura y, en particular, `apex import`, borrados masivos, scripts de reseteo y cambios de privilegios. Si se concede una autorización permanente, dejarla escrita con fecha y alcance.
 - Prohibido inventar nombres de columnas, vistas o propiedades de APEX que no estén confirmados contra la base o contra el compilador.
 
 > **Principio**
 >
-> Toda acción destructiva o irreversible se confirma con una persona. La IA propone y ejecuta lo seguro; lo que pisa o borra, se aprueba.
+> La IA puede diagnosticar y también corregir problemas, pero lo hace dentro de reglas y normas claras que define la persona, y cada cambio se confirma con ella antes de ejecutarse.
 
 ### 2.3 Scripts de base de datos seguros
 
@@ -530,10 +530,11 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 | Área | Práctica | Momento |
 |---|---|---|
 | Versionado | Repositorio en GitHub; secretos y datos reales fuera; commits pequeños. | Siempre |
-| Entornos | Una fuente de código; probar en la app de prueba; a producción solo lo probado. | Cada cambio |
+| Entornos | Una fuente de código; probar primero en la app de prueba los cambios grandes y las páginas nuevas; cambios sincronizados con GitHub. | Cada cambio |
+| Instalación y conexión | SQLcl y Java en la máquina local; la persona crea la conexión guardada y nunca escribe contraseñas en el chat. | Configuración |
 | Working copies | Una por funcionalidad; fusionar probado; no acumular. | Cada cambio |
 | Importación | Exportar y hacer commit antes de importar; avisar a los usuarios. | Antes de importar |
-| IA y base de datos | Conexiones con nombre, mínimo privilegio, aprobación para lo destructivo. | Configuración |
+| IA y base de datos | Conexiones con nombre, mínimo privilegio, reglas claras y confirmación en cada cambio. | Siempre |
 | Reglas de la IA | `CLAUDE.md` con entorno, límites y reglas aprendidas. | Inicio y revisión |
 | Skills | Usar el skill oficial de Oracle; la autoridad final es `apex validate`. | Al editar |
 | Modelos | Sonnet para el día a día; Opus para diseño, riesgo y depuración difícil; Haiku para lo mecánico. Ajustar el esfuerzo antes de cambiar. | Cada tarea |
