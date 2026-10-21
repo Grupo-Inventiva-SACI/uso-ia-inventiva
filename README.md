@@ -12,9 +12,10 @@ Esta guía reúne las prácticas que hemos adoptado al desarrollar aplicaciones 
 - [3. Skills y herramientas](#3-skills-y-herramientas)
 - [4. Preferir los componentes nativos de APEX](#4-preferir-los-componentes-nativos-de-apex)
 - [5. Gestión del contexto de la IA](#5-gestión-del-contexto-de-la-ia)
-- [6. Documentación y rigor técnico](#6-documentación-y-rigor-técnico)
-- [7. Cierre de tarea y limpieza de archivos sobrantes](#7-cierre-de-tarea-y-limpieza-de-archivos-sobrantes)
-- [8. Lista de verificación](#8-lista-de-verificación)
+- [6. Elegir el modelo de Claude según la tarea](#6-elegir-el-modelo-de-claude-según-la-tarea)
+- [7. Documentación y rigor técnico](#7-documentación-y-rigor-técnico)
+- [8. Cierre de tarea y limpieza de archivos sobrantes](#8-cierre-de-tarea-y-limpieza-de-archivos-sobrantes)
+- [9. Lista de verificación](#9-lista-de-verificación)
 
 ---
 
@@ -136,12 +137,6 @@ La validación fuera de línea no detecta todo lo que depende del render. Convie
 - Generadores para el código repetitivo (páginas con la misma estructura), en lugar de editar decenas de archivos a mano.
 - Un `RUNBOOK` con los comandos del día a día, para no depender de la memoria de nadie.
 
-### 3.3 Elegir el modelo según la tarea
-
-- Modelos más capaces para diseño, arquitectura, depuración difícil y revisión de código.
-- Modelos más rápidos y económicos para tareas mecánicas: generar páginas repetitivas, renombrar, buscar, formatear.
-- Si una tarea se atasca con un modelo, probar con otro antes de insistir con más intentos.
-
 ## 4. Preferir los componentes nativos de APEX
 
 Los asistentes de IA tienden a resolver cualquier necesidad de interfaz generando HTML y CSS a mano. Funciona, pero cuesta mantenerlo. **La regla es usar primero lo que APEX ya ofrece** y recurrir a HTML y CSS propios solo cuando no exista una alternativa nativa.
@@ -182,7 +177,7 @@ Los asistentes de IA tienden a resolver cualquier necesidad de interfaz generand
 
 ## 5. Gestión del contexto de la IA
 
-La calidad de las respuestas depende de lo que la IA tiene presente. Una conversación demasiado larga o mezclada con varios temas degrada los resultados.
+La calidad de las respuestas depende de lo que la IA tiene presente en la conversación (su «contexto»). Una conversación demasiado larga o mezclada con varios temas degrada los resultados y consume más rápido los límites de uso.
 
 ### 5.1 Memoria permanente en el repositorio
 
@@ -190,33 +185,160 @@ La calidad de las respuestas depende de lo que la IA tiene presente. Una convers
 - Documentación de decisiones: lo decidido queda escrito con sus alternativas, así una conversación nueva retoma sin repetir el razonamiento.
 - Bitácora de hitos y `RUNBOOK`: qué se hizo, en qué estado quedó y cómo se opera.
 
-### 5.2 Compactar y bifurcar conversaciones
+### 5.2 Un tema por conversación
 
-- **Compactar** cuando la conversación crece: se conserva lo importante y se libera espacio para seguir trabajando.
-- **Bifurcar** para explorar una alternativa sin contaminar la línea principal, o para tareas independientes entre sí (por ejemplo, una página y un script de base de datos).
-- **Empezar una conversación nueva** al cambiar de tarea. Si lo importante quedó en el `CLAUDE.md` y en la documentación, no se pierde nada.
-- Pedir a la IA que resuma el estado y las decisiones pendientes antes de cerrar una sesión larga.
+- **Mantener cada conversación enfocada en un solo tema o tarea** (por ejemplo, «la página de alta de clientes» o «la migración del módulo de facturación»). Con un contexto limpio y relevante, la IA es más efectiva y comete menos errores.
+- Evitar mezclar temas que no se relacionan (corregir un error de una página, rediseñar una tabla y redactar documentación en la misma conversación): los detalles de uno estorban al otro.
+- Cuando surge un tema nuevo, no seguir en la misma conversación: bifurcar (5.4) o abrir una nueva (5.6).
+- **Si se quiere aprovechar el contexto de una conversación para hacer otra cosa** (la IA ya conoce el esquema, las tablas y las decisiones), no continuar en la misma: **bifurcarla**. La original queda intacta con su tema y la bifurcación arranca con todo ese contexto.
 
-### 5.3 Delegar la exploración
+### 5.3 Compactar
+
+Compactar resume la conversación para liberar espacio, conservando lo esencial, y permite seguir sin empezar de cero.
+
+- Compactar cuando la conversación crece, se vuelve lenta o empieza a perder precisión, pero sigue siendo del mismo tema.
+- Hacerlo en un punto de corte natural (al terminar una página, después de un commit) y no en medio de una tarea a medias.
+- Indicar qué debe conservarse: decisiones tomadas, archivos modificados, pendientes y errores ya descartados. En Claude Code, `/compact` admite instrucciones sobre qué mantener.
+- Un resumen siempre pierde detalle. Lo que debe sobrevivir (reglas, decisiones, nombres de objetos) tiene que estar en el `CLAUDE.md` o en la documentación, no solo en la conversación.
+- Si después de compactar la IA «olvida» algo importante, es señal de que ese dato debía estar escrito en el repositorio.
+
+### 5.4 Bifurcar (fork)
+
+Bifurcar crea una copia de la conversación hasta ese punto, que sigue por un camino independiente. La original no se modifica.
+
+- Para **explorar una alternativa** sin contaminar la línea principal (por ejemplo, reporte interactivo contra reporte clásico).
+- Para **tareas independientes que parten del mismo contexto**: tras analizar el modelo de datos, una bifurcación hace la página y otra el script de base de datos.
+- Para **reutilizar el contexto en otro tema** (ver 5.2).
+- Para **probar la misma tarea con otro modelo** y comparar resultados (ver sección 6).
+- Antes de un cambio arriesgado, para poder volver al punto anterior.
+- Si la conversación de origen ya es muy larga, conviene compactarla antes de bifurcar para que la copia no arrastre contexto innecesario.
+- Lo que se decide en una bifurcación se lleva al repositorio (commit, documentación); no se copia a mano entre conversaciones.
+
+### 5.5 Nombrar las conversaciones y las bifurcaciones
+
+- **Cambiar el título de cada bifurcación apenas se crea.** Si no, queda con el mismo título que la original o con uno genérico, y después nadie sabe qué hace cada una.
+- Usar una convención simple, del estilo `Área · Objeto · Acción`:
+  - `APEX · Pág. 12 alta de clientes · formulario`
+  - `BD · Migración 004 · índices de facturas`
+  - `FORK · Reporte interactivo vs. clásico (pág. 20)`
+- Si el objetivo de una conversación cambia, actualizar el título (o, mejor, bifurcar según 5.2).
+- Un buen título permite retomar el trabajo, revisar el historial y que otra persona entienda qué se hizo en cada conversación.
+- Al terminar, el título debería describir lo que quedó hecho.
+
+### 5.6 Empezar una conversación nueva
+
+- Al cambiar de tarea cuando no hace falta el contexto anterior. Si lo importante quedó en el `CLAUDE.md` y en la documentación, no se pierde nada.
+- Antes de cerrar una sesión larga, pedir a la IA que resuma el estado y las decisiones pendientes, y guardar ese resumen en la documentación.
+
+### 5.7 Delegar la exploración
 
 - Las búsquedas amplias (por ejemplo, localizar todas las páginas que usan cierto componente) se delegan a subagentes, para no llenar la conversación principal con resultados intermedios.
 
-## 6. Documentación y rigor técnico
+### 5.8 Qué hacer en cada situación
 
-### 6.1 Registrar decisiones
+| Situación | Qué hacer |
+|---|---|
+| La conversación es larga, pero sigue siendo del mismo tema | Compactar |
+| Quiero usar lo que la IA ya sabe para otra tarea | Bifurcar y renombrar |
+| Quiero probar una alternativa sin riesgo | Bifurcar y renombrar |
+| Cambio total de tema y no necesito el contexto | Conversación nueva |
+| Terminé la tarea | Dejar un título que diga qué se hizo y guardar lo importante en el repositorio |
+
+## 6. Elegir el modelo de Claude según la tarea
+
+Claude se ofrece como una familia de tres modelos: **Opus**, **Sonnet** y **Haiku**. Las versiones actuales son las 5.5, lanzadas entre septiembre y octubre de 2026. Los tres aceptan texto e imágenes, usan herramientas, tienen una ventana de contexto de 1 millón de tokens, pueden generar hasta 128 mil tokens de salida y tienen conocimiento hasta junio de 2026. Se diferencian en **capacidad, velocidad y costo**.
+
+### 6.1 Comparativa
+
+| | **Opus 5.5** | **Sonnet 5.5** | **Haiku 5.5** |
+|---|---|---|---|
+| Para qué lo describe Anthropic | Programación agéntica de larga duración y trabajo de conocimiento | La mejor combinación de velocidad e inteligencia | Tareas de alto volumen y baja latencia: clasificación, extracción, enrutamiento |
+| Capacidad | La más alta de los tres | Alta; equilibrio entre capacidad y velocidad | Buena en tareas acotadas; la menor de los tres |
+| Velocidad | Moderada | Rápida | La más rápida |
+| Razonamiento | Adaptativo, siempre activo (esfuerzo por defecto: medio) | Adaptativo (esfuerzo por defecto: alto); permite reducirlo | Adaptativo (esfuerzo por defecto: medio) |
+| Precio por millón de tokens, entrada / salida (USD) | 4 / 20 | 2 / 10 | 0,10 / 0,50 (hasta 100 mil tokens de prompt) |
+| Con prompts de más de 100 mil tokens | Sin recargo | Sin recargo | 0,50 / 2,50 |
+| Lectura de caché (USD por millón) | 0,20 | 0,10 | 0,01 |
+| Procesamiento por lotes (Batch API) | 50 % de descuento | 50 % de descuento | 50 % de descuento |
+| ID de modelo | `claude-opus-5-5` | `claude-sonnet-5-5` | `claude-haiku-5-5` |
+
+**Cómo leer la tabla**
+
+- **Razonamiento adaptativo** significa que el modelo decide cuánto «pensar» antes de responder, según la dificultad. El parámetro de **esfuerzo** (effort) permite subir o bajar esa profundidad: más esfuerzo da mejores resultados en problemas difíciles, pero cuesta más y demora más. Anthropic recomienda ajustar el esfuerzo antes de cambiar de modelo.
+- **Costo relativo**: Sonnet cuesta la mitad que Opus por token, y Haiku cuesta unas 40 veces menos que Opus mientras el prompt no pase de 100 mil tokens. Los tokens de salida (lo que la IA escribe) cuestan 5 veces más que los de entrada en los tres modelos.
+- **Capacidad**: Anthropic no publica una única medida que ordene a los tres; el orden de la tabla sale de cómo los posiciona (Opus como el más capaz para trabajo complejo y largo, Haiku como el más rápido y económico) y es orientativo. Para nuestro caso de uso conviene comprobarlo con tareas reales de APEX y Oracle Database.
+- Los precios son los de la **API**. Con un plan de Claude Desktop o Claude Code el consumo se mide en los límites de uso (ver 0.2) y no en dólares; la proporción entre modelos sirve como referencia, pero conviene confirmarla en Configuración → Uso.
+
+> **Nota**
+>
+> Existe un nivel por encima de los tres: **Fable 5.1** (USD 10 / 50 por millón de tokens, más lento), pensado para razonamiento muy exigente y trabajo autónomo de muchas horas. Anthropic recomienda empezar por Opus 5.5 y pasar a Fable solo si las pruebas no alcanzan.
+
+### 6.2 Escenarios de uso con Oracle Database y APEX
+
+Esta guía es una recomendación del equipo para nuestro caso de uso; no proviene de pruebas publicadas por Anthropic.
+
+**Opus 5.5: diseño, riesgo y problemas difíciles**
+
+- Diseñar el modelo de datos, las reglas de integridad, los índices y la estructura de paquetes PL/SQL.
+- Migraciones de estructura y datos con riesgo, y refactorizaciones grandes de paquetes.
+- Depuración difícil: fallas silenciosas de renderizado en APEX, problemas de rendimiento, planes de ejecución, bloqueos (locks).
+- Revisión de seguridad y de código antes de pasar a producción.
+- Tareas largas y autónomas: construir un módulo completo con varias páginas, con exportación, validación e importación incluidas.
+- Decisiones de arquitectura que van a la documentación de decisiones.
+
+**Sonnet 5.5: el modelo para el trabajo diario**
+
+- Crear y modificar páginas, regiones, items y procesos en APEXlang.
+- Escribir consultas, vistas y paquetes PL/SQL de complejidad media.
+- Corregir errores ya diagnosticados, escribir scripts SQL y pruebas.
+- Documentación técnica y análisis de datos.
+- El ciclo diario con SQLcl: exportar, editar, validar e importar.
+
+**Haiku 5.5: tareas mecánicas, repetitivas y de búsqueda**
+
+- Renombrar, formatear y aplicar el mismo cambio a muchos archivos.
+- Generar páginas con una estructura idéntica a partir de una plantilla ya validada.
+- Traducir o redactar mensajes, etiquetas, comentarios y mensajes de commit.
+- Cargar catálogos y listas de valores con datos ya definidos.
+- Búsquedas y clasificación: localizar en qué páginas se usa un componente, listar objetos del diccionario, resumir registros (logs).
+- Subagentes de exploración (ver 5.7).
+- **Límite**: no usarlo, sin revisión, para decisiones de diseño, de seguridad ni para cambios destructivos.
+
+### 6.3 Reglas prácticas
+
+1. **Empezar con Sonnet** para el trabajo diario.
+2. **Subir a Opus** cuando la tarea es compleja o riesgosa (diseño, migraciones, seguridad), o cuando Sonnet se atasca después de dos intentos.
+3. **Bajar a Haiku** cuando la tarea es mecánica y fácil de verificar.
+4. **Ajustar el esfuerzo antes de cambiar de modelo**: bajarlo en tareas simples y subirlo en las difíciles.
+5. **Probar un caso real antes de generalizar**: para una tarea repetitiva, validar el resultado con un modelo y recién entonces delegar el resto a uno más económico.
+6. Cambiar de modelo en medio de una conversación larga obliga a reprocesar todo el contexto sin aprovechar la memoria caché. Si hace falta otro modelo para una tarea distinta, es mejor **bifurcar** (5.4) y cambiar el modelo en la bifurcación.
+7. Revisar siempre lo que produce un modelo más económico antes de importarlo: un error barato de generar puede salir caro en producción.
+
+### 6.4 Fuentes
+
+Datos de la documentación oficial de Anthropic, consultada el 21/10/2026. Los precios pueden cambiar, por lo que conviene verificarlos antes de tomar decisiones de presupuesto.
+
+- [Descripción general de los modelos](https://platform.claude.com/docs/en/about-claude/models/overview)
+- [Precios](https://platform.claude.com/docs/en/about-claude/pricing)
+- [Cómo elegir un modelo](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)
+- [Claude Opus 5.5](https://platform.claude.com/docs/en/models/opus-5-5/overview), [Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/overview) y [Claude Haiku 5.5](https://platform.claude.com/docs/en/models/haiku-5-5/overview)
+
+## 7. Documentación y rigor técnico
+
+### 7.1 Registrar decisiones
 
 - Documentar una decisión solo cuando hubo más de un camino posible y la elección condiciona el trabajo futuro.
 - Cada registro lleva: contexto, alternativas evaluadas, decisión, consecuencias y estado (propuesta, aceptada, superada).
 - Cuando una decisión resulta ser incorrecta, no se borra: se marca como superada y se enlaza a la que la reemplaza.
 - Incluir la consulta SQL que permite verificar la decisión.
 
-### 6.2 Verificar en el producto real
+### 7.2 Verificar en el producto real
 
 - Una validación correcta no garantiza que la pantalla se vea bien: abrir la aplicación y comprobarlo.
 - Los fallos silenciosos son los más caros (un slot de región inválido, un item sin plantilla de label, un branch que hace rollback). Documentarlos con su síntoma y su causa.
 - Probar un caso en una página antes de replicar el patrón en veinte.
 
-### 6.3 Modelado de datos
+### 7.3 Modelado de datos
 
 - Garantizar las reglas de negocio en la base: índices únicos parciales, CHECK, claves foráneas. La aplicación no es la última línea de defensa.
 - Reemplazar el texto libre por catálogos cuando el dato se usa para filtrar o agrupar.
@@ -225,7 +347,7 @@ La calidad de las respuestas depende de lo que la IA tiene presente. Una convers
 - Ante un posible falso positivo, preferir el falso negativo: un aviso equivocado cuesta la confianza en todos los demás.
 - Cuidado con `ON DELETE CASCADE`: puede eliminar datos relacionados en silencio. Si la regla de negocio lo prohíbe, controlarlo explícitamente.
 
-### 6.4 Seguridad
+### 7.4 Seguridad
 
 - Las contraseñas nunca se guardan en claro, ni se escriben en logs ni pasan por el estado de sesión: salt por usuario y hash iterado.
 - La autorización se valida en la página y en el proceso, no solo en el botón.
@@ -233,11 +355,11 @@ La calidad de las respuestas depende de lo que la IA tiene presente. Una convers
 - Activar Session State Protection en toda página que reciba un identificador por URL.
 - Registrar en una tabla de auditoría de solo inserción toda acción sobre cuentas ajenas.
 
-## 7. Cierre de tarea y limpieza de archivos sobrantes
+## 8. Cierre de tarea y limpieza de archivos sobrantes
 
 Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exportaciones de prueba, planes temporales, informes de revisión y borradores. Al terminar una tarea, esos restos no aportan nada y ensucian el repositorio, el contexto de la IA y las búsquedas.
 
-### 7.1 Qué suele sobrar
+### 8.1 Qué suele sobrar
 
 - Archivos de registro (`*.log`) y salidas de consola guardadas.
 - Documentos Markdown de trabajo que ya cumplieron su función: planes temporales, informes de sesión, críticas o revisiones puntuales, notas de depuración.
@@ -246,14 +368,14 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 - Scripts de un solo uso que ya se ejecutaron y no se volverán a necesitar.
 - Duplicados: versiones `v1`, `v2`, `(1)` de un mismo archivo.
 
-### 7.2 Qué se conserva
+### 8.2 Qué se conserva
 
 - `README`, `CLAUDE.md`, la documentación de decisiones, la bitácora de hitos y el `RUNBOOK`.
 - Migraciones y scripts reutilizables de base de datos.
 - Las herramientas de verificación y los generadores que se siguen usando.
 - Los respaldos que son la única copia de algo (por ejemplo, un dato previo a una migración).
 
-### 7.3 Cómo hacerlo
+### 8.3 Cómo hacerlo
 
 - Al cerrar la tarea, **pedir a la IA que proponga una lista de candidatos a eliminar**, con el motivo de cada uno. No debe borrar por su cuenta.
 - Una persona revisa la lista y confirma. Para cada archivo, preguntar: ¿alguien lo va a necesitar dentro de tres meses? ¿lo que contiene ya está en Git, en el `README` o en una decisión registrada?
@@ -266,7 +388,7 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 >
 > Todo archivo que se crea para ayudar a hacer una tarea y no es parte del resultado se elimina al terminarla. Si resulta útil, se convierte en documentación permanente o se descarta.
 
-## 8. Lista de verificación
+## 9. Lista de verificación
 
 | Área | Práctica | Momento |
 |---|---|---|
@@ -277,9 +399,9 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 | IA y base de datos | Conexiones con nombre, mínimo privilegio, aprobación para lo destructivo. | Configuración |
 | Reglas de la IA | `CLAUDE.md` con entorno, límites y reglas aprendidas. | Inicio y revisión |
 | Skills | Usar el skill oficial de Oracle; la autoridad final es `apex validate`. | Al editar |
-| Modelos | Más capaz para diseñar y depurar; más ágil para tareas mecánicas. | Cada tarea |
+| Modelos | Sonnet para el día a día; Opus para diseño, riesgo y depuración difícil; Haiku para lo mecánico. Ajustar el esfuerzo antes de cambiar. | Cada tarea |
 | Interfaz | Componentes nativos primero; HTML/CSS propio solo con justificación. | Al diseñar |
-| Contexto | Compactar, bifurcar o abrir una conversación nueva según el caso. | Durante la sesión |
+| Contexto | Un tema por conversación; compactar al mismo tema, bifurcar para reutilizar contexto y renombrar cada bifurcación. | Durante la sesión |
 | Decisiones | Registrar con alternativas y consecuencias; marcar las superadas. | Al decidir |
 | Verificación | Comprobar en la aplicación real; probar un caso antes de replicar. | Antes de cerrar |
 | Limpieza | Proponer, revisar y eliminar logs, Markdown y exports sobrantes. | Al terminar |
