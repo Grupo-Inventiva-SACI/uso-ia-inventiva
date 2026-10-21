@@ -115,7 +115,7 @@ Las reglas se escriben en un archivo `CLAUDE.md` en la raíz del proyecto, que l
 
 ### 2.4 SSH (avanzado)
 
-También se puede optar por habilitar conexiones con claves para usar SSH con los servidores del cliente, algo muy útil para modificar archivos con JRI, ver problemas en los servidores, etc.
+También se puede optar por habilitar conexiones con claves para usar SSH con los servidores del cliente, algo muy útil para modificar archivos con JASPER, ver problemas en los servidores, etc.
 
 A la vez, esto es peligroso porque la IA estaría accediendo a **TODO** el servidor del cliente, por lo que antes debemos darle normas y tareas bien claras para evitar problemas.
 
