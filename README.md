@@ -4,6 +4,9 @@ _Oracle Database, Oracle APEX y desarrollo asistido por IA_
 
 Esta guía reúne las prácticas que hemos adoptado al desarrollar aplicaciones con Oracle APEX y Oracle Database trabajando junto a un asistente de IA. Está pensada como referencia para el equipo: cada práctica explica **qué** hacer y **por qué**.
 
+La idea es tener más documentaciones que funcionen para migraciones de forms a otras herramientas, Facturación Electrónica y Java. 
+Como recordatorio: El administrador del equipo puede ver todas las conversaciones a modo de evitar abusos o falta de utilización. Tampoco es la idea que no usen sus subscripciones para estudios o cosas personales, pueden hacerlo **siempre y cuando no les falte "Uso" para las tareas laborales**, así que, dentro de ese marco, usemos con el entendimiento de que esta es una subscripción para el trabajo primeramente y en segunda instancia para otras cosas.
+
 ## Contenido
 
 - [0. Arranque](#0-arranque)
@@ -436,7 +439,7 @@ Bifurcar crea una copia de la conversación hasta ese punto, que sigue por un ca
 
 ### 5.6 Empezar una conversación nueva
 
-- Al cambiar de tarea cuando no hace falta el contexto anterior. Si lo importante quedó en el `CLAUDE.md` y en la documentación, no se pierde nada.
+- Al cambiar de tarea cuando no hace falta el contexto anterior. Si lo importante quedó en el `CLAUDE.md` y en la documentación, la IA comprenderá a grandes rasgos lo que pidan.
 - Antes de cerrar una sesión larga, pedir a la IA que resuma el estado y las decisiones pendientes, y guardar ese resumen en la documentación.
 
 ### 5.7 Delegar la exploración
