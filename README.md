@@ -69,7 +69,7 @@ Una conexión guardada permite que la IA (o nosotros) entremos a la base con un 
 
 - Dirección del servidor (host), puerto (normalmente 1521) y **nombre de servicio** de la base (service name).
 - Un usuario de base de datos **con los privilegios necesarios para el trabajo que se le pedirá a la IA** (consultar, diagnosticar y también corregir problemas), sin permisos de más, y no `SYS` ni `SYSTEM`.
-- Si la base no es accesible directamente, cómo llegar a ella: VPN o túnel SSH.
+- Si la base no es accesible directamente, cómo llegar a ella: VPN, túnel SSH o túnel TCP de AnyDesk (ver 0.8).
 
 #### Crear la conexión
 
@@ -255,6 +255,95 @@ Recomendaciones para el acceso por SSH:
 - En el servidor, usar un usuario con los permisos necesarios para la tarea y, siempre que se pueda, no `root`. La IA con acceso por SSH trabaja con las mismas reglas de confirmación de la sección 2.2: cada comando que modifica algo se muestra y se confirma antes de ejecutarse.
 - Proteger la clave privada con frase de contraseña, no compartirla y no subirla nunca a un repositorio.
 - Para quitar el acceso, se elimina la clave pública del archivo `authorized_keys` del servidor.
+
+### 0.8 Acceso remoto con túnel TCP de AnyDesk
+
+En soporte remoto, muchas veces el cliente no tiene habilitados los puertos hacia su base de datos o su servidor, pero **siempre tenemos acceso a través de AnyDesk**. Esta herramienta permite armar un **túnel TCP**: una comunicación directa, como una red interna o una VPN, que nos deja conectarnos a los servicios del servidor del cliente (base de datos, aplicación, SSH) desde nuestra propia máquina, sin que el cliente abra puertos.
+
+El orden es siempre el mismo:
+
+1. Verificar los permisos de AnyDesk en el equipo del cliente (0.8.1).
+2. Configurar el túnel en la sesión de AnyDesk (0.8.2).
+3. Crear el usuario dedicado `CLAUDE_INV` en la base de datos (0.8.3).
+4. Crear la conexión guardada de SQLcl apuntando al túnel (0.8.4).
+
+#### 0.8.1 Permisos necesarios en el AnyDesk del cliente
+
+Para poder crear túneles, el AnyDesk del cliente debe tener habilitado este permiso:
+
+**Configuración → Seguridad → Autorizaciones estándar → Crear túneles TCP**
+
+Sin él, la opción de túnel no funciona en la sesión. Conviene comprobarlo antes de empezar.
+
+#### 0.8.2 Configurar el túnel
+
+1. Con la sesión de AnyDesk conectada al servidor del cliente, abrir el menú **Acciones** (el ícono del rayo, en la barra superior de la sesión).
+2. Elegir **Configuración de túnel TCP**.
+3. Cargar un túnel por cada servicio al que haga falta llegar. Para cada uno se indica el puerto local en nuestra máquina y la dirección y el puerto de destino en el servidor del cliente.
+
+Los puertos habituales, a modo de ejemplo, son:
+
+| Servicio | Puerto |
+|---|---|
+| Base de datos Oracle | 1521 |
+| Aplicación | 8080 |
+| SSH | 22 |
+
+Los valores exactos dependen de cada servidor. Para no armarlos de memoria, se le puede pedir a la IA que indique qué valores ingresar, con un mensaje como este (cambiando el nombre del servidor):
+
+```text
+Tengo conectado Anydesk a GRUTTERPDB y quiero saber los valores para el
+túnel que necesitamos.
+```
+
+La IA responde con los valores que hay que ingresar para la base de datos (1521), la aplicación (8080) y SSH (22), según el caso.
+
+#### 0.8.3 Crear el usuario `CLAUDE_INV`
+
+El usuario estándar que se crea para la conexión con la IA debe llamarse **`CLAUDE_INV`**. Lo crea la persona con un usuario administrador de la base, ejecutando este script (reemplazando `TuClave` por una contraseña propia):
+
+```sql
+create user claude_inv identified by "TuClave"
+  default tablespace bs_data temporary tablespace temp;
+
+grant CREATE SESSION to CLAUDE_INV;
+grant READ ANY TABLE to CLAUDE_INV;
+grant SELECT_CATALOG_ROLE to CLAUDE_INV;
+grant APEX_ADMINISTRATOR_ROLE to CLAUDE_INV;
+grant APEX_ADMINISTRATOR_READ_ROLE to CLAUDE_INV;
+```
+
+Qué da cada permiso:
+
+| Permiso | Para qué sirve |
+|---|---|
+| `CREATE SESSION` | Poder conectarse a la base. |
+| `READ ANY TABLE` | Consultar las tablas de cualquier schema, sin poder modificarlas. |
+| `SELECT_CATALOG_ROLE` | Consultar las vistas del diccionario de datos. |
+| `APEX_ADMINISTRATOR_ROLE` | Administración de Oracle APEX. |
+| `APEX_ADMINISTRATOR_READ_ROLE` | Consulta de la administración de Oracle APEX. |
+
+Aspectos a cuidar:
+
+- Verificar que los tablespaces (`bs_data` y `temp`) existan en la base del cliente; si tienen otro nombre, ajustarlos.
+- **La contraseña no se escribe en la conversación con la IA ni se guarda en el repositorio.** Se escribe solo en la terminal propia, igual que en 0.5.
+- Son permisos amplios, sobre todo `READ ANY TABLE` y `APEX_ADMINISTRATOR_ROLE`: es conveniente crear el usuario con conocimiento del cliente y respetar el mínimo privilegio de la sección 2.1.
+
+#### 0.8.4 Conectar a través del túnel
+
+Una vez abierto el túnel, la base se alcanza desde nuestra máquina por el puerto local del túnel. La conexión guardada se crea igual que en 0.5 (o con el script de 0.7.1), pero en lugar de la dirección del cliente se usa `localhost` y el puerto local configurado en el túnel, con el usuario `CLAUDE_INV`:
+
+```text
+sql /nolog
+SQL> conn -save CLIENTE_PROD -savepwd claude_inv@//localhost:1521/servicio
+```
+
+Lo mismo vale para SSH: el alias se configura con `localhost` y el puerto local del túnel (ver 0.7.2).
+
+Recomendaciones:
+
+- Abrir únicamente los túneles que hacen falta para la tarea.
+- El acceso por túnel no cambia las reglas de trabajo: la IA se rige por las normas de la sección 2.2 y cada cambio se confirma antes de ejecutarse.
 
 ## 1. Control de versiones y entornos
 
@@ -607,6 +696,7 @@ Trabajar con IA genera muchos archivos intermedios: registros de ejecución, exp
 | Versionado | Repositorio en GitHub; secretos y datos reales fuera; commits pequeños. | Siempre |
 | Entornos | Una fuente de código; probar primero en la app de prueba los cambios grandes y las páginas nuevas; cambios sincronizados con GitHub. | Cada cambio |
 | Instalación y conexión | SQLcl y Java en la máquina local; la persona crea la conexión (SQLcl o SSH), con un script que pide la contraseña, y nunca la escribe en el chat. | Configuración |
+| Acceso remoto | Túnel TCP de AnyDesk con el permiso habilitado en el cliente; usuario dedicado `CLAUDE_INV`; conexión apuntando a `localhost`. | Soporte remoto |
 | Working copies | Una por funcionalidad; fusionar probado; no acumular. | Cada cambio |
 | Importación | Exportar y hacer commit antes de importar; avisar a los usuarios. | Antes de importar |
 | IA y base de datos | Conexiones con nombre, mínimo privilegio, reglas claras y confirmación en cada cambio. | Siempre |
